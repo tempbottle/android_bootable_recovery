@@ -63,7 +63,20 @@ int run_and_remove_extendedcommand();
 
 int verify_root_and_recovery();
 
+int select_system(const char* title);
+
+int select_dualboot_backupmode(const char* title);
+
+int select_dualboot_restoremode(const char* title);
+
 #ifdef RECOVERY_EXTEND_NANDROID_MENU
 void extend_nandroid_menu(char** items, int item_count, int max_items);
 void handle_nandroid_menu(int item_count, int selected);
 #endif
+
+#define DUALBOOT_ITEM_RESTORE_SYSTEM0            0
+#define DUALBOOT_ITEM_RESTORE_SYSTEM1            1
+#define DUALBOOT_ITEM_RESTORE_BOTH               2
+#define DUALBOOT_ITEM_RESTORE_ONE_TO_TWO         3
+#define DUALBOOT_ITEM_RESTORE_TWO_TO_ONE         4
+#define DUALBOOT_ITEM_RESTORE_BOTH_INTERCHANGED  5

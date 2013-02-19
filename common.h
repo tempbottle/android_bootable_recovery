@@ -18,6 +18,7 @@
 #define RECOVERY_COMMON_H
 
 #include <stdio.h>
+#include <sys/stat.h>
 
 // Initialize the graphics system.
 void ui_init();
@@ -135,6 +136,8 @@ typedef struct {
 
     const char* lun;          // (/sdcard, /emmc, /external_sd only) LUN file to
                               // use when mounting via USB mass storage
+
+    struct stat stat;
 } Volume;
 
 typedef struct {
@@ -161,5 +164,11 @@ FILE* fopen_path(const char *path, const char *mode);
 
 int ui_get_selected_item();
 int ui_is_showing_back_button();
+
+#define DUALBOOT_ITEM_INTERCHANGED    -2
+#define DUALBOOT_ITEM_ABORT           -1
+#define DUALBOOT_ITEM_BOTH             0
+#define DUALBOOT_ITEM_SYSTEM0          1
+#define DUALBOOT_ITEM_SYSTEM1          2
 
 #endif  // RECOVERY_COMMON_H

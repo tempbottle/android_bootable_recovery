@@ -326,6 +326,17 @@ int nandroid_backup_partition(const char* backup_path, const char* root) {
 
 int nandroid_backup(const char* backup_path)
 {
+    int dualboot_backup_system1=0;
+    if(is_dualsystem()) {
+        int system = select_dualboot_backupmode("Choose system to backup:");
+        if (system>=0) {
+            if(set_active_system(system)!=0)
+                return print_and_error("Failed setting system. Please REBOOT.\n");
+            if(system==DUALBOOT_ITEM_BOTH) dualboot_backup_system1=1;
+        }
+        else return print_and_error("Aborted by user.\n");
+    }
+
     nandroid_backup_bitfield = 0;
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     refresh_default_backup_handler();
@@ -375,6 +386,9 @@ int nandroid_backup(const char* backup_path)
     }
 
     if (0 != (ret = nandroid_backup_partition(backup_path, "/system")))
+        return ret;
+
+    if (is_dualsystem() && dualboot_backup_system1 && 0 != (ret = nandroid_backup_partition(backup_path, "/system1")))
         return ret;
 
     if (0 != (ret = nandroid_backup_partition(backup_path, "/data")))
@@ -659,7 +673,7 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
     return nandroid_restore_partition_extended(backup_path, root, 1);
 }
 
-int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax)
+int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_system1)
 {
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     ui_show_indeterminate_progress();
@@ -712,6 +726,9 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
     if (restore_system && 0 != (ret = nandroid_restore_partition(backup_path, "/system")))
         return ret;
 
+    if(is_dualsystem() && restore_system1 && 0 != (ret = nandroid_restore_partition(backup_path, "/system1")))
+        return ret;
+
     if (restore_data && 0 != (ret = nandroid_restore_partition(backup_path, "/data")))
         return ret;
         
@@ -762,7 +779,7 @@ int nandroid_main(int argc, char** argv)
     {
         if (argc != 3)
             return nandroid_usage();
-        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0);
+        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 0);
     }
     
     return nandroid_usage();

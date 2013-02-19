@@ -102,6 +102,17 @@ toggle_signature_check()
 
 int install_zip(const char* packagefilepath)
 {
+    if(is_dualsystem()) {
+        int system = select_system("Choose system to install zip:");
+        if (system>=0) {
+            if(set_active_system(system)!=0) {
+                ui_print("Failed setting system. Please REBOOT!\n");
+                return 1;
+            }
+        }
+        else return 1;
+    }
+
     ui_print("\n-- Installing: %s\n", packagefilepath);
     if (device_flash_type() == MTD) {
         set_sdcard_update_bootloader_message();
@@ -410,9 +421,50 @@ void show_nandroid_restore_menu(const char* path)
     char* file = choose_file_menu(tmp, NULL, headers);
     if (file == NULL)
         return;
+    if(is_dualsystem()) {
+        int system = select_dualboot_restoremode("Choose restore mode:");
+        int result;
+        switch(system) {
+            case DUALBOOT_ITEM_RESTORE_SYSTEM0:
+                result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+                break;
+            case DUALBOOT_ITEM_RESTORE_SYSTEM1:
+                result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1);
+                break;
+            case DUALBOOT_ITEM_RESTORE_BOTH:
+                result = set_active_system(DUALBOOT_ITEM_BOTH);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1);
+                break;
+            case DUALBOOT_ITEM_RESTORE_ONE_TO_TWO:
+                result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+                break;
+            case DUALBOOT_ITEM_RESTORE_TWO_TO_ONE:
+                result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1);
+                break;
+            case DUALBOOT_ITEM_RESTORE_BOTH_INTERCHANGED:
+                result = set_active_system(DUALBOOT_ITEM_INTERCHANGED);
+                if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1);
+                break;
 
+            default:
+                return;
+        }
+        if(result!=0)
+            ui_print("Failed setting system. Please REBOOT!\n");
+        return;
+    }
     if (confirm_selection("Confirm restore?", "Yes - Restore"))
-        nandroid_restore(file, 1, 1, 1, 1, 1, 0);
+        nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
 }
 
 void show_nandroid_delete_menu(const char* path)
@@ -1001,12 +1053,13 @@ void show_nandroid_advanced_restore_menu(const char* path)
                                 NULL
     };
 
-    static char* list[] = { "Restore boot",
+    char* list[] = { "Restore boot",
                             "Restore system",
                             "Restore data",
                             "Restore cache",
                             "Restore sd-ext",
                             "Restore wimax",
+                            "Restore system1",
                             NULL
     };
     
@@ -1015,34 +1068,68 @@ void show_nandroid_advanced_restore_menu(const char* path)
         list[5] = NULL;
     }
 
+    int item_position_system1 = 6;
+    if(!is_dualsystem())
+        list[6] = NULL;
+    else if(list[5]==NULL) {
+        list[5] = list[6];
+        list[6] = NULL;
+        item_position_system1 = 5;
+    }
+
     static char* confirm_restore  = "Confirm restore?";
 
     int chosen_item = get_menu_selection(headers, list, 0, 0);
+    if(chosen_item==item_position_system1) {
+        if(is_dualsystem()) {
+            int system = select_system("Choose system to restore:");
+            if (system>=0) {
+                if(set_active_system(system)!=0) {
+                    LOGE("Failed setting system. Please REBOOT.\n");
+                    return;
+                }
+            }
+            else return;
+        }
+        if (confirm_selection(confirm_restore, "Yes - Restore system1"))
+            nandroid_restore(file, 0, 0, 0, 0, 0, 0, 1);
+        return;
+    }
     switch (chosen_item)
     {
         case 0:
             if (confirm_selection(confirm_restore, "Yes - Restore boot"))
-                nandroid_restore(file, 1, 0, 0, 0, 0, 0);
+                nandroid_restore(file, 1, 0, 0, 0, 0, 0, 0);
             break;
         case 1:
+            if(is_dualsystem()) {
+                int system = select_system("Choose system to restore:");
+                if (system>=0) {
+                    if(set_active_system(system)!=0) {
+                        LOGE("Failed setting system. Please REBOOT.\n");
+                        return;
+                    }
+                }
+                else return;
+            }
             if (confirm_selection(confirm_restore, "Yes - Restore system"))
-                nandroid_restore(file, 0, 1, 0, 0, 0, 0);
+                nandroid_restore(file, 0, 1, 0, 0, 0, 0, 0);
             break;
         case 2:
             if (confirm_selection(confirm_restore, "Yes - Restore data"))
-                nandroid_restore(file, 0, 0, 1, 0, 0, 0);
+                nandroid_restore(file, 0, 0, 1, 0, 0, 0, 0);
             break;
         case 3:
             if (confirm_selection(confirm_restore, "Yes - Restore cache"))
-                nandroid_restore(file, 0, 0, 0, 1, 0, 0);
+                nandroid_restore(file, 0, 0, 0, 1, 0, 0, 0);
             break;
         case 4:
             if (confirm_selection(confirm_restore, "Yes - Restore sd-ext"))
-                nandroid_restore(file, 0, 0, 0, 0, 1, 0);
+                nandroid_restore(file, 0, 0, 0, 0, 1, 0, 0);
             break;
         case 5:
             if (confirm_selection(confirm_restore, "Yes - Restore wimax"))
-                nandroid_restore(file, 0, 0, 0, 0, 0, 1);
+                nandroid_restore(file, 0, 0, 0, 0, 0, 1, 0);
             break;
     }
 }
@@ -1376,6 +1463,16 @@ void show_advanced_menu()
                 ui_printlogtail(12);
                 break;
             case 5:
+                if(is_dualsystem()) {
+                    int system = select_system("Choose system to fix permissions:");
+                    if (system>=0) {
+                        if(set_active_system(system)!=0) {
+                            ui_print("Failed setting system. Please REBOOT!\n");
+                            break;
+                        }
+                    }
+                    else break;
+                }
                 ensure_path_mounted("/system");
                 ensure_path_mounted("/data");
                 ui_print("Fixing permissions...\n");
@@ -1503,7 +1600,7 @@ void process_volumes() {
     ui_print("in case of error.\n");
 
     nandroid_backup(backup_path);
-    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0);
+    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0, 0);
     ui_set_show_text(0);
 }
 
@@ -1596,4 +1693,39 @@ int verify_root_and_recovery() {
 
     ensure_path_unmounted("/system");
     return ret;
+}
+
+int select_system(const char* title)
+{
+    char* headers[] = { title, "", NULL };
+    char* items[] = { "System1",
+                      "System2",
+                      NULL };
+    int chosen_item = get_menu_selection(headers, items, 0, 0);
+    return chosen_item+1;
+}
+
+int select_dualboot_backupmode(const char* title)
+{
+    char* headers[] = { title, "", NULL };
+    char* items[] = { "Backup System1 only",
+                      "Backup System2 only",
+                      "Backup both systems(combined)",
+                      NULL };
+    int chosen_item = get_menu_selection(headers, items, 0, 0);
+    return chosen_item==2?DUALBOOT_ITEM_BOTH:chosen_item+1;
+}
+
+int select_dualboot_restoremode(const char* title)
+{
+    char* headers[] = { title, "", NULL };
+    char* items[] = { "Restore System1 only",
+                      "Restore System2 only",
+                      "Restore both systems",
+                      "Restore System1->System2",
+                      "Restore System2->System1",
+                      "Restore both interchanged",
+                      NULL };
+    int chosen_item = get_menu_selection(headers, items, 0, 0);
+    return chosen_item;
 }

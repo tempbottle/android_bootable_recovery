@@ -724,7 +724,15 @@ prompt_and_wait() {
                 break;
 
             case ITEM_APPLY_SIDELOAD:
-                apply_from_adb();
+                if(is_dualsystem()) {
+                    int system = select_system("Choose system to install zip:");
+                    if (system>=0) {
+                        if(set_active_system(system)!=0)
+                            ui_print("Failed setting system. Please REBOOT!\n");
+                        else apply_from_adb();
+                    }
+                }
+                else apply_from_adb();
                 break;
 
             case ITEM_NANDROID:

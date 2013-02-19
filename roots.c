@@ -21,6 +21,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <ctype.h>
+#ifndef major
+# include <sys/sysmacros.h>
+#endif
 
 #include "mtdutils/mtdutils.h"
 #include "mounts.h"
@@ -143,6 +146,9 @@ void load_volume_table() {
             device_volumes[num_volumes].fs_options = NULL;
             device_volumes[num_volumes].fs_options2 = NULL;
             device_volumes[num_volumes].lun = NULL;
+            int code;
+            if(code=stat(device, &device_volumes[num_volumes].stat)!=0)
+                LOGE("stat: Error %d on file %s\n", code, device);
 
             if (parse_options(options, device_volumes + num_volumes) != 0) {
                 LOGE("skipping malformed recovery.fstab line: %s\n", original);
@@ -197,6 +203,100 @@ int try_mount(const char* device, const char* mount_point, const char* fs_type, 
         return 0;
     LOGW("failed to mount %s (%s)\n", device, strerror(errno));
     return ret;
+}
+
+int replace_device_node(Volume* vol, struct stat* stat) {
+    if(stat==NULL) return -1;
+    if(ensure_path_unmounted(vol->mount_point)!=0) {
+        LOGE("replace_device_node: could not unmount device!\n");
+        return -1;
+    } if(unlink(vol->device)!=0) {
+        LOGE("replace_device_node: could not delete node!\n");
+        return -1;
+    } if(mknod(vol->device, stat->st_mode, stat->st_rdev)!=0) {
+        LOGE("replace_device_node: could not create node!\n");
+        return -1;
+    }
+    return 0;
+}
+
+int set_active_system(int num) {
+    int i;
+    char* mount_point;
+    Volume* system0 = volume_for_path("/system");
+    Volume* system1 = volume_for_path("/system1");
+    Volume* boot0 = volume_for_path("/boot");
+    Volume* boot1 = volume_for_path("/boot1");
+    if(system0!=NULL && system1!=NULL) {
+        Volume* v0;
+        Volume* v1;
+        if(num==DUALBOOT_ITEM_SYSTEM0) {
+            v0=system0;
+            v1=system0;
+        }
+        else if(num==DUALBOOT_ITEM_SYSTEM1) {
+            v0=system1;
+            v1=system1;
+        }
+        else if(num==DUALBOOT_ITEM_BOTH) {
+            v0=system0;
+            v1=system1;
+        }
+        else if(num==DUALBOOT_ITEM_INTERCHANGED) {
+            v0=system1;
+            v1=system0;
+        }
+        else {
+            LOGE("set_active_system: invalid system number: %d!\n", num);
+            return -1;
+        }
+
+        if(replace_device_node(system0, &v0->stat)!=0)
+            return -1;
+        if(replace_device_node(system1, &v1->stat)!=0)
+            return -1;
+    }
+    if(boot0!=NULL && boot1!=NULL) {
+        Volume* v0;
+        Volume* v1;
+       if(num==DUALBOOT_ITEM_SYSTEM0) {
+            v0=boot0;
+            v1=boot0;
+        }
+        else if(num==DUALBOOT_ITEM_SYSTEM1) {
+            v0=boot1;
+            v1=boot1;
+        }
+        else if(num==DUALBOOT_ITEM_BOTH) {
+            v0=boot0;
+            v1=boot1;
+        }
+        else if(num==DUALBOOT_ITEM_INTERCHANGED) {
+            v0=boot1;
+            v1=boot0;
+        }
+        else {
+            LOGE("set_active_system: invalid system number: %d!\n", num);
+            return -1;
+        }
+
+        if(replace_device_node(boot0, &v0->stat)!=0)
+            return -1;
+        if(replace_device_node(boot1, &v1->stat)!=0)
+            return -1;
+    }
+
+    return 0;
+}
+
+int is_dualsystem() {
+    int i;
+    for (i = 0; i < num_volumes; i++) {
+        Volume* vol = device_volumes + i;
+        if (strcmp(vol->mount_point, "/system1") == 0)
+            return 1;
+    }
+    return 0;
 }
 
 int is_data_media() {

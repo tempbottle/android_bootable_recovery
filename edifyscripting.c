@@ -311,6 +311,11 @@ int run_script_from_buffer(char* script_data, int script_len, char* filename)
 
 #define EXTENDEDCOMMAND_SCRIPT "/cache/recovery/extendedcommand"
 
+void remove_extendedcommand()
+{
+    remove(EXTENDEDCOMMAND_SCRIPT);
+}
+
 int run_and_remove_extendedcommand()
 {
     char tmp[PATH_MAX];

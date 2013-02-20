@@ -959,13 +959,31 @@ main(int argc, char **argv) {
         
         if (extendedcommand_file_exists()) {
             LOGI("Running extendedcommand...\n");
-            int ret;
-            if (0 == (ret = run_and_remove_extendedcommand())) {
-                status = INSTALL_SUCCESS;
-                ui_set_show_text(0);
+            int dualsystem_error = 0;
+            if(is_dualsystem()) {
+                int system = select_system("Choose system to install ROM:");
+                if (system>=0) {
+                    if(set_active_system(system)!=0) {
+                        ui_print("Failed setting system. Please REBOOT!\n");
+                        dualsystem_error = 1;
+                        remove_extendedcommand();
+                    }
+                }
+                else  {
+                    dualsystem_error = 1;
+                    status = INSTALL_SUCCESS;
+                    remove_extendedcommand();
+                }
             }
-            else {
-                handle_failure(ret);
+            if(!dualsystem_error) {
+                int ret;
+                if (0 == (ret = run_and_remove_extendedcommand())) {
+                    status = INSTALL_SUCCESS;
+                    ui_set_show_text(0);
+                }
+                else {
+                    handle_failure(ret);
+                }
             }
         } else {
             LOGI("Skipping execution of extendedcommand, file not found...\n");

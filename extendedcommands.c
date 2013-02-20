@@ -102,17 +102,6 @@ toggle_signature_check()
 
 int install_zip(const char* packagefilepath)
 {
-    if(is_dualsystem()) {
-        int system = select_system("Choose system to install zip:");
-        if (system>=0) {
-            if(set_active_system(system)!=0) {
-                ui_print("Failed setting system. Please REBOOT!\n");
-                return 1;
-            }
-        }
-        else return 1;
-    }
-
     ui_print("\n-- Installing: %s\n", packagefilepath);
     if (device_flash_type() == MTD) {
         set_sdcard_update_bootloader_message();
@@ -167,7 +156,21 @@ void show_install_update_menu()
                 break;
             case ITEM_APPLY_SDCARD:
             {
-                if (confirm_selection("Confirm install?", "Yes - Install /sdcard/update.zip"))
+                if(is_dualsystem()) {
+                    int system = select_system("Choose system to install zip:");
+                    if (system>=0) {
+                        if(set_active_system(system)!=0) {
+                            ui_print("Failed setting system. Please REBOOT!\n");
+                        }
+                        else {
+                            char confirm[PATH_MAX];
+                            sprintf(confirm, "Yes - Install /sdcard/update.zip to System%d", system);
+                            if (confirm_selection("Confirm install?", confirm))
+                                install_zip(SDCARD_UPDATE_FILE);
+                        }
+                    }
+                }
+                else if (confirm_selection("Confirm install?", "Yes - Install /sdcard/update.zip"))
                     install_zip(SDCARD_UPDATE_FILE);
                 break;
             }
@@ -399,9 +402,26 @@ void show_choose_zip_menu(const char *mount_point)
         return;
     static char* confirm_install  = "Confirm install?";
     static char confirm[PATH_MAX];
-    sprintf(confirm, "Yes - Install %s", basename(file));
-    if (confirm_selection(confirm_install, confirm))
-        install_zip(file);
+    
+    if(is_dualsystem()) {
+        int system = select_system("Choose system to install zip:");
+        if (system>=0) {
+            if(set_active_system(system)!=0) {
+                ui_print("Failed setting system. Please REBOOT!\n");
+            }
+            else {
+                char confirm[PATH_MAX];
+                sprintf(confirm, "Yes - Install %s to System%d", basename(file), system);
+                if (confirm_selection("Confirm install?", confirm))
+                    install_zip(file);
+            }
+        }
+    }
+    else {
+        sprintf(confirm, "Yes - Install %s", basename(file));
+        if (confirm_selection(confirm_install, confirm))
+            install_zip(file);
+    }
 }
 
 void show_nandroid_restore_menu(const char* path)

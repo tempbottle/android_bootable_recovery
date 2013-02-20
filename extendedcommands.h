@@ -63,7 +63,7 @@ void remove_extendedcommand();
 
 int run_and_remove_extendedcommand();
 
-int verify_root_and_recovery();
+int verify_root_and_recovery(int system_number);
 
 int select_system(const char* title);
 

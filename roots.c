@@ -207,13 +207,20 @@ int try_mount(const char* device, const char* mount_point, const char* fs_type, 
 
 int replace_device_node(Volume* vol, struct stat* stat) {
     if(stat==NULL) return -1;
+
+    ssize_t len;
+    char resolved_path[PATH_MAX];
+    if((len = readlink(vol->device, resolved_path, sizeof(resolved_path)-1)) != -1)
+        resolved_path[len] = '\0';
+    else sprintf(resolved_path, "%s", vol->device);
+
     if(ensure_path_unmounted(vol->mount_point)!=0) {
         LOGE("replace_device_node: could not unmount device!\n");
         return -1;
-    } if(unlink(vol->device)!=0) {
+    } if(unlink(resolved_path)!=0) {
         LOGE("replace_device_node: could not delete node!\n");
         return -1;
-    } if(mknod(vol->device, stat->st_mode, stat->st_rdev)!=0) {
+    } if(mknod(resolved_path, stat->st_mode, stat->st_rdev)!=0) {
         LOGE("replace_device_node: could not create node!\n");
         return -1;
     }

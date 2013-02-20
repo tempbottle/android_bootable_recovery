@@ -56,6 +56,8 @@ void show_install_update_menu();
 
 int confirm_selection(const char* title, const char* confirm);
 
+void remove_extendedcommand();
+
 int run_and_remove_extendedcommand();
 
 int verify_root_and_recovery();

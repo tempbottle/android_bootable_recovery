@@ -1671,7 +1671,14 @@ int volume_main(int argc, char **argv) {
     return 0;
 }
 
-int verify_root_and_recovery() {
+int verify_root_and_recovery(int system_number) {
+    if(is_dualsystem()) {
+        if(set_active_system(system_number)!=0) {
+            LOGE("Failed setting system. Please REBOOT.\n");
+            return 0;
+        }
+    }
+
     if (ensure_path_mounted("/system") != 0)
         return 0;
 
@@ -1681,7 +1688,10 @@ int verify_root_and_recovery() {
         if (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
             ui_show_text(1);
             ret = 1;
-            if (confirm_selection("ROM may flash stock recovery on boot. Fix?", "Yes - Disable recovery flash")) {
+            char confirm[PATH_MAX];
+            if(is_dualsystem()) sprintf(confirm, "Yes - Disable recovery flash on System%d", system_number);
+            else sprintf(confirm, "Yes - Disable recovery flash");
+            if (confirm_selection("ROM may flash stock recovery on boot. Fix?", confirm)) {
                 __system("chmod -x /system/etc/install-recovery.sh");
             }
         }
@@ -1692,7 +1702,10 @@ int verify_root_and_recovery() {
             if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
                 ret = 1;
-                if (confirm_selection("Root access possibly lost. Fix?", "Yes - Fix root (/system/bin/su)")) {
+                char confirm[PATH_MAX];
+                if(is_dualsystem()) sprintf(confirm, "Yes - Fix root (/system/bin/su) on System%d", system_number);
+                else sprintf(confirm, "Yes - Fix root (/system/bin/su)");
+                if (confirm_selection("Root access possibly lost. Fix?", confirm)) {
                     __system("chmod 6755 /system/bin/su");
                 }
             }
@@ -1704,7 +1717,10 @@ int verify_root_and_recovery() {
             if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
                 ret = 1;
-                if (confirm_selection("Root access possibly lost. Fix?", "Yes - Fix root (/system/xbin/su)")) {
+                char confirm[PATH_MAX];
+                if(is_dualsystem()) sprintf(confirm, "Yes - Fix root (/system/xbin/su) on System%d", system_number);
+                else sprintf(confirm, "Yes - Fix root (/system/xbin/su)");
+                if (confirm_selection("Root access possibly lost. Fix?", confirm)) {
                     __system("chmod 6755 /system/xbin/su");
                 }
             }

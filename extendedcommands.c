@@ -62,7 +62,11 @@ get_filtered_menu_selection(char** headers, char** items, int menu_only, int ini
     }
     items[offset] = NULL;
 
-    initial_selection = translate_table[initial_selection];
+    for (index = 0; index < offset; index++) {
+        if(translate_table[index] == initial_selection)
+            initial_selection = index;
+    }
+
     int ret = get_menu_selection(headers, items, menu_only, initial_selection);
     if (ret < 0 || ret >= offset) {
         free(translate_table);

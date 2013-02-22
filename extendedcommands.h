@@ -71,6 +71,10 @@ int select_dualboot_backupmode(const char* title);
 
 int select_dualboot_restoremode(const char* title);
 
+int setBootmode(char* bootmode);
+
+int getBootmode(char* bootmode);
+
 #ifdef RECOVERY_EXTEND_NANDROID_MENU
 void extend_nandroid_menu(char** items, int item_count, int max_items);
 void handle_nandroid_menu(int item_count, int selected);

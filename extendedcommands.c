@@ -944,8 +944,23 @@ void show_partition_menu()
     for (i = 0; i < num_volumes; ++i) {
         Volume* v = &device_volumes[i];
         if(strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) != 0 && strcmp("emmc", v->fs_type) != 0 && strcmp("bml", v->fs_type) != 0) {
-            sprintf(&mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
-            sprintf(&mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
+
+            int systemNumber = -1;
+            if(is_dualsystem()) {
+                if(strcmp("/system", v->mount_point)==0)
+                    systemNumber = 1;
+                else if(strcmp("/system1", v->mount_point)==0)
+                    systemNumber = 2;
+            }
+
+            if(systemNumber>0) {
+                sprintf(&mount_menu[mountable_volumes].mount, "mount System%d at /system", systemNumber);
+                sprintf(&mount_menu[mountable_volumes].unmount, "unmount System%d from /system", systemNumber);
+            }
+            else {
+                sprintf(&mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
+                sprintf(&mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
+            }
             mount_menu[mountable_volumes].v = &device_volumes[i];
             ++mountable_volumes;
             if (is_safe_to_format(v->mount_point)) {
@@ -972,6 +987,24 @@ void show_partition_menu()
         {
             MountMenuEntry* e = &mount_menu[i];
             Volume* v = e->v;
+
+            if(is_dualsystem() && (strcmp("/system", v->mount_point)==0 || strcmp("/system1", v->mount_point)==0)) {
+                int result;
+                result = scan_mounted_volumes();
+                if (result < 0) {
+                    LOGE("failed to scan mounted volumes\n");
+                    continue;
+                }
+
+                if(find_mounted_volume_by_device(v->device)!=NULL) {
+                    options[i] = e->unmount;
+                } else {
+                    options[i] = e->mount;
+                }
+
+                continue;
+            }
+
             if(is_path_mounted(v->mount_point))
                 options[i] = e->unmount;
             else
@@ -1017,6 +1050,27 @@ void show_partition_menu()
             MountMenuEntry* e = &mount_menu[chosen_item];
             Volume* v = e->v;
 
+            if(is_dualsystem()) {
+                int systemNumber = -1;
+
+                if(strcmp("/system", v->mount_point)==0)
+                    systemNumber = 1;
+                else if(strcmp("/system1", v->mount_point)==0)
+                    systemNumber = 2;
+
+                if(systemNumber>0) {
+                    if (find_mounted_volume_by_device(v->device)!=NULL) {
+                        if (0 != ensure_path_unmounted("/system"))
+                            ui_print("Error unmounting /system!\n");
+                    }
+                    else if(set_active_system(DUALBOOT_ITEM_BOTH)==0) {
+                        if (0 != ensure_path_mounted_at_mount_point(v->mount_point, "/system"))
+                            ui_print("Error mounting %s at /system!\n",  v->mount_point);
+                    }
+                    continue;
+                }
+            }
+
             if (is_path_mounted(v->mount_point))
             {
                 if (0 != ensure_path_unmounted(v->mount_point))
@@ -1033,6 +1087,10 @@ void show_partition_menu()
             chosen_item = chosen_item - mountable_volumes;
             FormatMenuEntry* e = &format_menu[chosen_item];
             Volume* v = e->v;
+
+            if(is_dualsystem() && set_active_system(DUALBOOT_ITEM_BOTH)!=0) {
+                continue;
+            }
 
             sprintf(confirm_string, "%s - %s", v->mount_point, confirm_format);
 

@@ -442,7 +442,7 @@ void show_nandroid_restore_menu(const char* path)
     if (file == NULL)
         return;
     if(is_dualsystem()) {
-        int system = select_dualboot_restoremode("Choose restore mode:");
+        int system = select_dualboot_restoremode("Choose restore mode:", file);
         int result;
         switch(system) {
             case DUALBOOT_ITEM_RESTORE_SYSTEM0:
@@ -1771,7 +1771,7 @@ int select_dualboot_backupmode(const char* title)
     return chosen_item==2?DUALBOOT_ITEM_BOTH:chosen_item+1;
 }
 
-int select_dualboot_restoremode(const char* title)
+int select_dualboot_restoremode(const char* title, const char* file)
 {
     char* headers[] = { title, "", NULL };
     char* items[] = { "Restore System1 only",
@@ -1781,7 +1781,27 @@ int select_dualboot_restoremode(const char* title)
                       "Restore System2->System1",
                       "Restore both interchanged",
                       NULL };
-    int chosen_item = get_menu_selection(headers, items, 0, 0);
+    char fileSystem0[PATH_MAX];
+    char fileSystem1[PATH_MAX];
+    sprintf(fileSystem0, "%s%s", file, "system.ext4.tar");
+    sprintf(fileSystem1, "%s%s", file, "system1.ext4.tar");
+    int hasSystem0 = fileExists(fileSystem0);
+    int hasSystem1 = fileExists(fileSystem1);
+
+    if(!hasSystem0) {
+        items[0] = NULL;
+        items[3] = NULL;
+    }
+    if(!hasSystem1) {
+        items[1] = NULL;
+        items[4] = NULL;
+    }
+    if(!hasSystem0 || !hasSystem1) {
+        items[2] = NULL;
+        items[5] = NULL;
+    }
+
+    int chosen_item = get_filtered_menu_selection(headers, items, 0, 0, sizeof(items) / sizeof(char*));
     return chosen_item;
 }
 
@@ -1823,4 +1843,9 @@ int getBootmode(char* bootmode) {
    // close
    fclose(misc);
    return 0;
+}
+
+int fileExists(const char* file) {
+    struct stat st;
+    return (0 == lstat(file, &st));
 }

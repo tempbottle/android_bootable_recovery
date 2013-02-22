@@ -66,7 +66,7 @@ int select_system(const char* title);
 
 int select_dualboot_backupmode(const char* title);
 
-int select_dualboot_restoremode(const char* title);
+int select_dualboot_restoremode(const char* title, const char* file);
 
 int setBootmode(char* bootmode);
 

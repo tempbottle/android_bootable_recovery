@@ -227,6 +227,44 @@ int replace_device_node(Volume* vol, struct stat* stat) {
     return 0;
 }
 
+int handle_volume_request(Volume* vol0, Volume* vol1, int num) {
+    if(vol0!=NULL && vol1!=NULL) {
+        Volume* v0;
+        Volume* v1;
+        if(num==DUALBOOT_ITEM_SYSTEM0) {
+            v0=vol0;
+            v1=vol0;
+        }
+        else if(num==DUALBOOT_ITEM_SYSTEM1) {
+            v0=vol1;
+            v1=vol1;
+        }
+        else if(num==DUALBOOT_ITEM_BOTH) {
+            v0=vol0;
+            v1=vol1;
+        }
+        else if(num==DUALBOOT_ITEM_INTERCHANGED) {
+            v0=vol1;
+            v1=vol0;
+        }
+        else {
+            LOGE("set_active_system: invalid system number: %d!\n", num);
+            return -1;
+        }
+
+        if(replace_device_node(vol0, &v0->stat)!=0)
+            return -1;
+        if(replace_device_node(vol1, &v1->stat)!=0)
+            return -1;
+
+        return 0;
+    }
+    else {
+        LOGE("set_active_system: invalid volumes given!\n");
+        return -1;
+    }
+}
+
 int set_active_system(int num) {
     int i;
     char* mount_point;
@@ -234,64 +272,10 @@ int set_active_system(int num) {
     Volume* system1 = volume_for_path("/system1");
     Volume* boot0 = volume_for_path("/boot");
     Volume* boot1 = volume_for_path("/boot1");
-    if(system0!=NULL && system1!=NULL) {
-        Volume* v0;
-        Volume* v1;
-        if(num==DUALBOOT_ITEM_SYSTEM0) {
-            v0=system0;
-            v1=system0;
-        }
-        else if(num==DUALBOOT_ITEM_SYSTEM1) {
-            v0=system1;
-            v1=system1;
-        }
-        else if(num==DUALBOOT_ITEM_BOTH) {
-            v0=system0;
-            v1=system1;
-        }
-        else if(num==DUALBOOT_ITEM_INTERCHANGED) {
-            v0=system1;
-            v1=system0;
-        }
-        else {
-            LOGE("set_active_system: invalid system number: %d!\n", num);
-            return -1;
-        }
+    Volume* userdata = volume_for_path("/data");
 
-        if(replace_device_node(system0, &v0->stat)!=0)
-            return -1;
-        if(replace_device_node(system1, &v1->stat)!=0)
-            return -1;
-    }
-    if(boot0!=NULL && boot1!=NULL) {
-        Volume* v0;
-        Volume* v1;
-       if(num==DUALBOOT_ITEM_SYSTEM0) {
-            v0=boot0;
-            v1=boot0;
-        }
-        else if(num==DUALBOOT_ITEM_SYSTEM1) {
-            v0=boot1;
-            v1=boot1;
-        }
-        else if(num==DUALBOOT_ITEM_BOTH) {
-            v0=boot0;
-            v1=boot1;
-        }
-        else if(num==DUALBOOT_ITEM_INTERCHANGED) {
-            v0=boot1;
-            v1=boot0;
-        }
-        else {
-            LOGE("set_active_system: invalid system number: %d!\n", num);
-            return -1;
-        }
-
-        if(replace_device_node(boot0, &v0->stat)!=0)
-            return -1;
-        if(replace_device_node(boot1, &v1->stat)!=0)
-            return -1;
-    }
+    handle_volume_request(system0, system1, num);
+    handle_volume_request(boot0, boot1, num);
 
     return 0;
 }

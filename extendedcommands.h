@@ -65,6 +65,8 @@ int run_and_remove_extendedcommand();
 
 int verify_root_and_recovery(int system_number);
 
+int getDualsystemMode();
+
 int select_system(const char* title);
 
 int select_dualboot_backupmode(const char* title);
@@ -74,6 +76,10 @@ int select_dualboot_restoremode(const char* title, const char* file);
 int setBootmode(char* bootmode);
 
 int getBootmode(char* bootmode);
+
+int isTrueDualbootEnabled();
+
+int enableTrueDualboot(int enable);
 
 #ifdef RECOVERY_EXTEND_NANDROID_MENU
 void extend_nandroid_menu(char** items, int item_count, int max_items);
@@ -86,3 +92,8 @@ void handle_nandroid_menu(int item_count, int selected);
 #define DUALBOOT_ITEM_RESTORE_ONE_TO_TWO         3
 #define DUALBOOT_ITEM_RESTORE_TWO_TO_ONE         4
 #define DUALBOOT_ITEM_RESTORE_BOTH_INTERCHANGED  5
+
+#define DUALBOOT_FILE_TRUEDUALBOOT DUALBOOT_PATH_DATAROOT "/.truedualboot"
+#define DUALBOOT_PATH_DATAROOT "/data_root"
+#define DUALBOOT_PATH_USERDATA0 DUALBOOT_PATH_DATAROOT "/system0"
+#define DUALBOOT_PATH_USERDATA1 DUALBOOT_PATH_DATAROOT "/system1"

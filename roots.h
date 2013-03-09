@@ -25,6 +25,8 @@ void load_volume_table();
 // Return the Volume* record for this path (or NULL).
 Volume* volume_for_path(const char* path);
 
+int getLastDataSubfolder();
+
 // Make sure that the volume 'path' is on is mounted.  Returns 0 on
 // success (volume is mounted).
 int ensure_path_mounted(const char* path);
@@ -47,5 +49,6 @@ int is_data_media();
 void setup_data_media();
 int is_data_media_volume_path(const char* path);
 void handle_data_media_format(int handle);
+void handle_truedualsystem_format(int handle);
 
 #endif  // RECOVERY_ROOTS_H_

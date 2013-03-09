@@ -386,6 +386,9 @@ int nandroid_backup(const char* backup_path)
     if (0 != (ret = nandroid_backup_partition(backup_path, "/boot")))
         return ret;
 
+    if (is_dualsystem() && dualboot_backup_system1 && 0 != (ret = nandroid_backup_partition(backup_path, "/boot1")))
+        return ret;
+
     if (0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
         return ret;
 
@@ -749,7 +752,7 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
     return nandroid_restore_partition_extended(backup_path, root, 1);
 }
 
-int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_system1, int restore_data1)
+int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_system1, int restore_data1, int restore_boot1)
 {
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     ui_show_indeterminate_progress();
@@ -770,6 +773,9 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
     if (restore_boot && NULL != volume_for_path("/boot") && 0 != (ret = nandroid_restore_partition(backup_path, "/boot")))
         return ret;
 
+    if (is_dualsystem() && restore_boot1 && NULL != volume_for_path("/boot1") && 0 != (ret = nandroid_restore_partition(backup_path, "/boot1")))
+        return ret;
+    
     struct stat s;
     Volume *vol = volume_for_path("/wimax");
     if (restore_wimax && vol != NULL && 0 == stat(vol->device, &s))
@@ -941,7 +947,7 @@ int nandroid_main(int argc, char** argv)
     {
         if (argc != 3)
             return nandroid_usage();
-        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 0, 0);
+        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 0, 0, 0);
     }
     
     if (strcmp("dump", argv[1]) == 0)

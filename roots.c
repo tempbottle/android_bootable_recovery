@@ -134,6 +134,24 @@ void load_volume_table() {
                 alloc *= 2;
                 device_volumes = realloc(device_volumes, alloc*sizeof(Volume));
             }
+
+            if(is_dualsystem() && strcmp(mount_point, "/data")==0) {
+                char resolved_path[PATH_MAX];
+                ssize_t len;
+
+                // resolve symlink
+                if((len = readlink(device, resolved_path, sizeof(resolved_path)-1)) != -1)
+                    resolved_path[len] = '\0';
+                else sprintf(resolved_path, "%s", device);
+
+                // delete node
+                if(rename(resolved_path, "/dev/userdata_moved")!=0)
+                    LOGE("could not move %s to %s!\n", resolved_path, "/dev/userdata_moved");
+
+                device = "/dev/userdata_moved";
+
+            }
+
             device_volumes[num_volumes].mount_point = strdup(mount_point);
             device_volumes[num_volumes].fs_type = strdup(fs_type);
             device_volumes[num_volumes].device = strdup(device);
@@ -146,6 +164,7 @@ void load_volume_table() {
             device_volumes[num_volumes].fs_options = NULL;
             device_volumes[num_volumes].fs_options2 = NULL;
             device_volumes[num_volumes].lun = NULL;
+
             int code;
             if(code=stat(device, &device_volumes[num_volumes].stat)!=0)
                 LOGE("stat: Error %d on file %s\n", code, device);
@@ -154,6 +173,24 @@ void load_volume_table() {
                 LOGE("skipping malformed recovery.fstab line: %s\n", original);
             } else {
                 ++num_volumes;
+
+                if(is_dualsystem() && mount_point!=NULL && strcmp(mount_point, "/data")==0) {
+                    while (num_volumes >= alloc) {
+                        alloc *= 2;
+                        device_volumes = realloc(device_volumes, alloc*sizeof(Volume));
+                    }
+
+                    device_volumes[num_volumes].mount_point = "/data1";
+                    device_volumes[num_volumes].fs_type = "bind";
+                    device_volumes[num_volumes].device = NULL;
+                    device_volumes[num_volumes].device2 = NULL;
+                    device_volumes[num_volumes].fs_type2 = NULL;
+                    device_volumes[num_volumes].fs_options = NULL;
+                    device_volumes[num_volumes].fs_options2 = NULL;
+                    device_volumes[num_volumes].lun = NULL;
+                    device_volumes[num_volumes].length = 0;
+                    ++num_volumes;
+                }
             }
         } else {
             LOGE("skipping malformed recovery.fstab line: %s\n", original);
@@ -265,6 +302,11 @@ int handle_volume_request(Volume* vol0, Volume* vol1, int num) {
     }
 }
 
+int selected_dualsystem_mode = -1;
+int getDualsystemMode() {
+    return selected_dualsystem_mode;
+}
+
 int set_active_system(int num) {
     int i;
     char* mount_point;
@@ -272,10 +314,16 @@ int set_active_system(int num) {
     Volume* system1 = volume_for_path("/system1");
     Volume* boot0 = volume_for_path("/boot");
     Volume* boot1 = volume_for_path("/boot1");
-    Volume* userdata = volume_for_path("/data");
 
     handle_volume_request(system0, system1, num);
     handle_volume_request(boot0, boot1, num);
+
+    if(ensure_path_unmounted("/data")!=0) {
+        LOGE("could not unmount /data!\n");
+        return -1;
+    }
+
+    selected_dualsystem_mode = num;
 
     return 0;
 }
@@ -322,6 +370,11 @@ int ensure_path_mounted(const char* path) {
     return ensure_path_mounted_at_mount_point(path, NULL);
 }
 
+int lastDataSubfolder = -1;
+int getLastDataSubfolder() {
+    return lastDataSubfolder;
+}
+
 int ensure_path_mounted_at_mount_point(const char* path, const char* mount_point) {
     Volume* v = volume_for_path(path);
     if (v == NULL) {
@@ -350,6 +403,83 @@ int ensure_path_mounted_at_mount_point(const char* path, const char* mount_point
 
     if (NULL == mount_point)
         mount_point = v->mount_point;
+
+    int dataNum = -1;
+    if(strcmp(path, "/data") == 0)
+        dataNum = 0;
+    else if(strcmp(path, "/data1") == 0)
+        dataNum = 1;
+
+    if (dataNum>=0 && is_dualsystem() && strcmp(mount_point, DUALBOOT_PATH_DATAROOT) != 0 && isTrueDualbootEnabled()) {
+        int ret;
+        int subfolder[2];
+
+        if (0 != (ret = ensure_path_mounted_at_mount_point("/data", DUALBOOT_PATH_DATAROOT)))
+            return ret;
+
+        // get subfolder for bind-mount
+        switch(getDualsystemMode()) {
+            case DUALBOOT_ITEM_SYSTEM0:
+                subfolder[0] = DUALBOOT_ITEM_SYSTEM0;
+                subfolder[1] = DUALBOOT_ITEM_SYSTEM0;
+            break;
+
+            case DUALBOOT_ITEM_SYSTEM1:
+                subfolder[0] = DUALBOOT_ITEM_SYSTEM1;
+                subfolder[1] = DUALBOOT_ITEM_SYSTEM1;
+            break;
+
+            case DUALBOOT_ITEM_BOTH:
+            case -1:
+                subfolder[0] = DUALBOOT_ITEM_SYSTEM0;
+                subfolder[1] = DUALBOOT_ITEM_SYSTEM1;
+            break;
+
+            case DUALBOOT_ITEM_INTERCHANGED:
+                subfolder[0] = DUALBOOT_ITEM_SYSTEM1;
+                subfolder[1] = DUALBOOT_ITEM_SYSTEM0;
+            break;
+
+            default:
+                LOGI("Unsupported DualsystemMode for mounting data: %d\n", getDualsystemMode());
+                return -1;
+        }
+
+        // check if volume is already mounted
+        const MountedVolume* mv =
+            find_mounted_volume_by_mount_point("/data");
+        if (mv) {
+            // volume is already mounted
+            if(lastDataSubfolder>=0) {
+                if(lastDataSubfolder!=subfolder[dataNum] && ensure_path_unmounted("/data") != 0) {
+                    LOGE("failed to unmount \"/data\"\n");
+                    return -1;
+                }
+            }
+            else return 0;
+        }
+
+        // create directories
+        mkdir(mount_point, 0755);
+        mkdir(DUALBOOT_PATH_USERDATA0, 0755);
+        mkdir(DUALBOOT_PATH_USERDATA1, 0755);
+
+        // get sSubfolder
+        char* sSubfolder;
+        if(subfolder[dataNum]==DUALBOOT_ITEM_SYSTEM0)
+            sSubfolder = DUALBOOT_PATH_USERDATA0;
+        else if(subfolder[dataNum]==DUALBOOT_ITEM_SYSTEM1)
+            sSubfolder = DUALBOOT_PATH_USERDATA1;
+
+        // bind-mount /data
+        char bindmount_command[PATH_MAX];
+        sprintf(bindmount_command, "mount -o bind %s %s", sSubfolder, mount_point);
+        ret = __system(bindmount_command);
+        if(ret!=0) return ret;
+
+        lastDataSubfolder=subfolder[dataNum];
+        return 0;
+    }
 
     const MountedVolume* mv =
         find_mounted_volume_by_mount_point(mount_point);
@@ -394,10 +524,14 @@ int ensure_path_mounted_at_mount_point(const char* path, const char* mount_point
     LOGE("unknown fs_type \"%s\" for %s\n", v->fs_type, mount_point);
     return -1;
 }
-
+static int handle_truedualsystem = 0;
 int ensure_path_unmounted(const char* path) {
     // if we are using /data/media, do not ever unmount volumes /data or /sdcard
     if (strstr(path, "/data") == path && is_data_media()) {
+        return 0;
+    }
+    // if we are using TrueDualBoot do not ever unmount volume /data_root
+    if (strstr(path, DUALBOOT_PATH_DATAROOT) == path && is_dualsystem() && isTrueDualbootEnabled()) {
         return 0;
     }
 
@@ -419,6 +553,15 @@ int ensure_path_unmounted(const char* path) {
     if (result < 0) {
         LOGE("failed to scan mounted volumes\n");
         return -1;
+    }
+
+    // if we are NOT using TrueDualBoot do unmount volume /data_root too
+    if (strstr(path, "/data") == path && is_dualsystem() && !(isTrueDualbootEnabled() && !handle_truedualsystem)) {
+        const MountedVolume* mv =
+            find_mounted_volume_by_mount_point(DUALBOOT_PATH_DATAROOT);
+        if(mv!=NULL) {
+            unmount_mounted_volume(mv);
+        }
     }
 
     const MountedVolume* mv =
@@ -449,6 +592,9 @@ int format_volume(const char* volume) {
     // check to see if /data is being formatted, and if it is /data/media
     // Note: the /sdcard check is redundant probably, just being safe.
     if (strstr(volume, "/data") == volume && is_data_media() && !handle_data_media) {
+        return format_unknown_device(NULL, volume, NULL);
+    }
+    if (strstr(volume, "/data") == volume && is_dualsystem() && isTrueDualbootEnabled() && !handle_truedualsystem) {
         return format_unknown_device(NULL, volume, NULL);
     }
     if (strcmp(v->fs_type, "ramdisk") == 0) {
@@ -510,4 +656,8 @@ int format_volume(const char* volume) {
 
 void handle_data_media_format(int handle) {
   handle_data_media = handle;
+}
+
+void handle_truedualsystem_format(int handle) {
+  handle_truedualsystem = handle;
 }

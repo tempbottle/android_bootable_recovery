@@ -637,6 +637,18 @@ update_directory(const char* path, const char* unmount_when_done) {
 
 static void
 wipe_data(int confirm) {
+
+    if(is_dualsystem() && isTrueDualbootEnabled()) {
+        int system = select_system("Choose system to restore:");
+        if (system>=0) {
+            if(set_active_system(system)!=0) {
+                LOGE("Failed setting system. Please REBOOT.\n");
+                return;
+            }
+        }
+        else return;
+    }
+
     if (confirm) {
         static char** title_headers = NULL;
 
@@ -977,6 +989,11 @@ main(int argc, char **argv) {
             }
             if(!dualsystem_error) {
                 int ret;
+
+                // extendedcommand will not be able to mount /data so do it now otherwise files will land on ramdisk
+                if(is_dualsystem() && isTrueDualbootEnabled())
+                    ensure_path_mounted("/data");
+
                 if (0 == (ret = run_and_remove_extendedcommand())) {
                     status = INSTALL_SUCCESS;
                     ui_set_show_text(0);

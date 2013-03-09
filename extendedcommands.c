@@ -1602,6 +1602,17 @@ void show_advanced_menu()
                 android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
                 break;
             case 1:
+                if(is_dualsystem() && isTrueDualbootEnabled()) {
+                    int system = select_system("Choose system to wipe dalvik-cache:");
+                    if (system>=0) {
+                        if(set_active_system(system)!=0) {
+                            ui_print("Failed setting system. Please REBOOT!\n");
+                            break;
+                        }
+                    }
+                    else break;
+                }
+
                 if (0 != ensure_path_mounted("/data"))
                     break;
                 ensure_path_mounted("/sd-ext");

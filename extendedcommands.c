@@ -1249,14 +1249,16 @@ void show_nandroid_advanced_restore_menu(const char* path)
     int chosen_item = get_filtered_menu_selection(headers, list, 0, 0, sizeof(list) / sizeof(char*));
 
     if(is_dualsystem() && chosen_item>=0 && chosen_item<=5) {
-        system = select_system("Choose system to restore:");
-        if (system>=0) {
-            if(set_active_system(system)!=0) {
-                LOGE("Failed setting system. Please REBOOT.\n");
-                return;
+        if(!((chosen_item==4 || chosen_item==5) && !isTrueDualbootEnabled())) {
+            system = select_system("Choose system to restore:");
+            if (system>=0) {
+                if(set_active_system(system)!=0) {
+                    LOGE("Failed setting system. Please REBOOT.\n");
+                    return;
+                }
             }
+            else return;
         }
-        else return;
     }
 
     switch (chosen_item)

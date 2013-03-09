@@ -106,6 +106,10 @@ toggle_signature_check()
 
 int install_zip(const char* packagefilepath)
 {
+    // updater_script will not be able to mount /data so do it now otherwise files will land on ramdisk
+    if(is_dualsystem() && isTrueDualbootEnabled())
+        ensure_path_mounted("/data");
+
     ui_print("\n-- Installing: %s\n", packagefilepath);
     if (device_flash_type() == MTD) {
         set_sdcard_update_bootloader_message();
@@ -452,32 +456,32 @@ void show_nandroid_restore_menu(const char* path)
             case DUALBOOT_ITEM_RESTORE_SYSTEM0:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
                 break;
             case DUALBOOT_ITEM_RESTORE_SYSTEM1:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1);
+                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_BOTH:
                 result = set_active_system(DUALBOOT_ITEM_BOTH);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_ONE_TO_TWO:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
                 break;
             case DUALBOOT_ITEM_RESTORE_TWO_TO_ONE:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1);
+                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_BOTH_INTERCHANGED:
                 result = set_active_system(DUALBOOT_ITEM_INTERCHANGED);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1);
                 break;
 
             default:
@@ -488,7 +492,7 @@ void show_nandroid_restore_menu(const char* path)
         return;
     }
     if (confirm_selection("Confirm restore?", "Yes - Restore"))
-        nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+        nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
 }
 
 void show_nandroid_delete_menu(const char* path)
@@ -510,7 +514,7 @@ void show_nandroid_delete_menu(const char* path)
         return;
 
     if (confirm_selection("Confirm delete?", "Yes - Delete")) {
-        // nandroid_restore(file, 1, 1, 1, 1, 1, 0);
+        // nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
         sprintf(tmp, "rm -rf %s", file);
         __system(tmp);
     }
@@ -732,6 +736,9 @@ int format_device(const char *device, const char *path, const char *fs_type) {
     if (strstr(path, "/data") == path && is_data_media()) {
         return format_unknown_device(NULL, path, NULL);
     }
+    if (strstr(path, "/data") == path && is_dualsystem() && isTrueDualbootEnabled()) {
+        return format_unknown_device(NULL, path, NULL);
+    }
     if (strcmp(fs_type, "ramdisk") == 0) {
         // you can't format the ramdisk.
         LOGE("can't format_volume \"%s\"", path);
@@ -945,19 +952,28 @@ void show_partition_menu()
         Volume* v = &device_volumes[i];
         if(strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) != 0 && strcmp("emmc", v->fs_type) != 0 && strcmp("bml", v->fs_type) != 0) {
 
-            int systemNumber = -1;
+            int systemNumber = -1, dataNumber = -1;
             if(is_dualsystem()) {
                 if(strcmp("/system", v->mount_point)==0)
                     systemNumber = 1;
                 else if(strcmp("/system1", v->mount_point)==0)
                     systemNumber = 2;
+                else if(strcmp("/data", v->mount_point)==0)
+                    dataNumber = 1;
+                else if(strcmp("/data1", v->mount_point)==0)
+                    dataNumber = 2;
             }
 
             if(systemNumber>0) {
                 sprintf(&mount_menu[mountable_volumes].mount, "mount System%d at /system", systemNumber);
                 sprintf(&mount_menu[mountable_volumes].unmount, "unmount System%d from /system", systemNumber);
             }
+            if(dataNumber>0 && isTrueDualbootEnabled()) {
+                sprintf(&mount_menu[mountable_volumes].mount, "mount Data%d at /data", dataNumber);
+                sprintf(&mount_menu[mountable_volumes].unmount, "unmount Data%d from /data", dataNumber);
+            }
             else {
+                if(dataNumber>1) continue;
                 sprintf(&mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
                 sprintf(&mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
             }
@@ -988,21 +1004,52 @@ void show_partition_menu()
             MountMenuEntry* e = &mount_menu[i];
             Volume* v = e->v;
 
-            if(is_dualsystem() && (strcmp("/system", v->mount_point)==0 || strcmp("/system1", v->mount_point)==0)) {
-                int result;
-                result = scan_mounted_volumes();
-                if (result < 0) {
-                    LOGE("failed to scan mounted volumes\n");
+            if(is_dualsystem()) {
+                int systemNumber = -1, dataNumber = -1;
+                if(strcmp("/system", v->mount_point)==0)
+                    systemNumber = 1;
+                else if(strcmp("/system1", v->mount_point)==0)
+                    systemNumber = 2;
+                else if(strcmp("/data", v->mount_point)==0)
+                    dataNumber = 1;
+                else if(strcmp("/data1", v->mount_point)==0)
+                    dataNumber = 2;
+
+                if(systemNumber!=-1) {
+                    int result;
+                    result = scan_mounted_volumes();
+                    if (result < 0) {
+                        LOGE("failed to scan mounted volumes\n");
+                        continue;
+                    }
+
+                    // TODO better check
+                    if(find_mounted_volume_by_device(v->device)!=NULL) {
+                        options[i] = e->unmount;
+                    } else {
+                        options[i] = e->mount;
+                    }
+
                     continue;
                 }
 
-                if(find_mounted_volume_by_device(v->device)!=NULL) {
-                    options[i] = e->unmount;
-                } else {
-                    options[i] = e->mount;
-                }
+                if(dataNumber!=-1) {
+                    int result;
+                    result = scan_mounted_volumes();
+                    if (result < 0) {
+                        LOGE("failed to scan mounted volumes\n");
+                        continue;
+                    }
 
-                continue;
+                    int lastData = getLastDataSubfolder();
+                    if(is_path_mounted("/data")!=NULL && lastData==dataNumber) {
+                        options[i] = e->unmount;
+                    } else {
+                        options[i] = e->mount;
+                    }
+
+                    continue;
+                }
             }
 
             if(is_path_mounted(v->mount_point))
@@ -1051,12 +1098,16 @@ void show_partition_menu()
             Volume* v = e->v;
 
             if(is_dualsystem()) {
-                int systemNumber = -1;
+                int systemNumber = -1, dataNumber = -1;
 
                 if(strcmp("/system", v->mount_point)==0)
                     systemNumber = 1;
                 else if(strcmp("/system1", v->mount_point)==0)
                     systemNumber = 2;
+                if(strcmp("/data", v->mount_point)==0)
+                    dataNumber = 1;
+                else if(strcmp("/data1", v->mount_point)==0)
+                    dataNumber = 2;
 
                 if(systemNumber>0) {
                     if (find_mounted_volume_by_device(v->device)!=NULL) {
@@ -1066,6 +1117,17 @@ void show_partition_menu()
                     else if(set_active_system(DUALBOOT_ITEM_BOTH)==0) {
                         if (0 != ensure_path_mounted_at_mount_point(v->mount_point, "/system"))
                             ui_print("Error mounting %s at /system!\n",  v->mount_point);
+                    }
+                    continue;
+                }
+                else if(dataNumber>0) {
+                    if (is_path_mounted("/data")!=NULL) {
+                        if (0 != ensure_path_unmounted("/data"))
+                            ui_print("Error unmounting /data!\n");
+                    }
+                    else if(set_active_system(DUALBOOT_ITEM_BOTH)==0) {
+                        if (0 != ensure_path_mounted_at_mount_point(v->mount_point, "/data"))
+                            ui_print("Error mounting %s at /data!\n",  v->mount_point);
                     }
                     continue;
                 }
@@ -1142,6 +1204,7 @@ void show_nandroid_advanced_restore_menu(const char* path)
                             "Restore sd-ext",
                             "Restore wimax",
                             "Restore system1",
+                            "Restore data1",
                             NULL
     };
     
@@ -1151,18 +1214,24 @@ void show_nandroid_advanced_restore_menu(const char* path)
     }
 
     int item_position_system1 = 6;
-    if(!is_dualsystem())
+    int item_position_data1 = 7;
+    if(!is_dualsystem()) {
         list[6] = NULL;
+        list[7] = NULL;
+    }
     else if(list[5]==NULL) {
         list[5] = list[6];
-        list[6] = NULL;
+        if(!isTrueDualbootEnabled()) list[6] = NULL;
+        else list[6] = list[7];
+        list[7] = NULL;
         item_position_system1 = 5;
+        item_position_data1 = 6;
     }
 
     static char* confirm_restore  = "Confirm restore?";
 
     int chosen_item = get_menu_selection(headers, list, 0, 0);
-    if(chosen_item==item_position_system1) {
+    if(chosen_item==item_position_system1 || chosen_item==item_position_data1) {
         if(is_dualsystem()) {
             int system = select_system("Choose system to restore:");
             if (system>=0) {
@@ -1173,15 +1242,21 @@ void show_nandroid_advanced_restore_menu(const char* path)
             }
             else return;
         }
-        if (confirm_selection(confirm_restore, "Yes - Restore system1"))
-            nandroid_restore(file, 0, 0, 0, 0, 0, 0, 1);
+        if(chosen_item==item_position_system1) {
+            if (confirm_selection(confirm_restore, "Yes - Restore system1"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 1, 0);
+        }
+        else if(chosen_item==item_position_data1) {
+            if (confirm_selection(confirm_restore, "Yes - Restore data1"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 0, 1);
+        }
         return;
     }
     switch (chosen_item)
     {
         case 0:
             if (confirm_selection(confirm_restore, "Yes - Restore boot"))
-                nandroid_restore(file, 1, 0, 0, 0, 0, 0, 0);
+                nandroid_restore(file, 1, 0, 0, 0, 0, 0, 0, 0);
             break;
         case 1:
             if(is_dualsystem()) {
@@ -1195,23 +1270,23 @@ void show_nandroid_advanced_restore_menu(const char* path)
                 else return;
             }
             if (confirm_selection(confirm_restore, "Yes - Restore system"))
-                nandroid_restore(file, 0, 1, 0, 0, 0, 0, 0);
+                nandroid_restore(file, 0, 1, 0, 0, 0, 0, 0, 0);
             break;
         case 2:
             if (confirm_selection(confirm_restore, "Yes - Restore data"))
-                nandroid_restore(file, 0, 0, 1, 0, 0, 0, 0);
+                nandroid_restore(file, 0, 0, 1, 0, 0, 0, 0, 0);
             break;
         case 3:
             if (confirm_selection(confirm_restore, "Yes - Restore cache"))
-                nandroid_restore(file, 0, 0, 0, 1, 0, 0, 0);
+                nandroid_restore(file, 0, 0, 0, 1, 0, 0, 0, 0);
             break;
         case 4:
             if (confirm_selection(confirm_restore, "Yes - Restore sd-ext"))
-                nandroid_restore(file, 0, 0, 0, 0, 1, 0, 0);
+                nandroid_restore(file, 0, 0, 0, 0, 1, 0, 0, 0);
             break;
         case 5:
             if (confirm_selection(confirm_restore, "Yes - Restore wimax"))
-                nandroid_restore(file, 0, 0, 0, 0, 0, 1, 0);
+                nandroid_restore(file, 0, 0, 0, 0, 0, 1, 0, 0);
             break;
     }
 }
@@ -1491,6 +1566,7 @@ void show_advanced_menu()
                          "partition external sdcard",
                          "partition internal sdcard",
                          "active system: ",
+                         NULL,
                          NULL
         };
 
@@ -1513,6 +1589,9 @@ void show_advanced_menu()
                 list[9]="active system: 2";
             else
                 list[9]=NULL;
+
+            if(isTrueDualbootEnabled()) list[10] = "DISABLE TrueDualBoot";
+            else list[10] = "ENABLE TrueDualBoot";
         }
         int chosen_item = get_filtered_menu_selection(headers, list, 0, 0, sizeof(list) / sizeof(char*));
         if (chosen_item == GO_BACK)
@@ -1588,6 +1667,9 @@ void show_advanced_menu()
                     setBootmode("boot-system0");
                 else if(system==DUALBOOT_ITEM_SYSTEM1)
                     setBootmode("boot-system1");
+                break;
+            case 10:
+                enableTrueDualboot(!isTrueDualbootEnabled());
                 break;
         }
     }
@@ -1701,7 +1783,7 @@ void process_volumes() {
     ui_print("in case of error.\n");
 
     nandroid_backup(backup_path);
-    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0, 0);
+    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0, 0, 0);
     ui_set_show_text(0);
 }
 
@@ -1808,6 +1890,14 @@ int verify_root_and_recovery(int system_number) {
         }
     }
 
+    if(is_dualsystem()) {
+        if(isTrueDualbootEnabled())
+            __system("cp /res/dualsystem/mount_ext4_tdb.sh /system/bin/mount_ext4.sh");
+        else
+            __system("cp /res/dualsystem/mount_ext4_default.sh /system/bin/mount_ext4.sh");
+        chmod("/system/bin/mount_ext4.sh", 0755);
+    }
+
     ensure_path_unmounted("/system");
     return ret;
 }
@@ -1910,4 +2000,63 @@ int getBootmode(char* bootmode) {
 int fileExists(const char* file) {
     struct stat st;
     return (0 == lstat(file, &st));
+}
+
+int isTrueDualbootEnabled() {
+    struct stat st;
+    int ret;
+    if (ensure_path_mounted_at_mount_point("/data", DUALBOOT_PATH_DATAROOT)!=0) {
+        LOGE("TrueDualBoot: failed mounting data\n");
+        return -1;
+    }
+    ret = lstat(DUALBOOT_FILE_TRUEDUALBOOT, &st);
+    return (ret==0);
+}
+
+int enableTrueDualboot(int enable) {
+    char confirm[PATH_MAX];
+    ui_setMenuTextColor(MENU_TEXT_COLOR_RED);
+    sprintf(confirm, "Yes - %s TrueDualBoot", enable?"ENABLE":"DISABLE");
+
+    if (confirm_selection("This will WIPE DATA. Confirm?", confirm)) {
+        // unmount /data
+        if(ensure_path_unmounted("/data")!=0) {
+            LOGE("Error unmounting /data!\n");
+            return -1;
+        }
+
+        // format /data
+        ui_set_background(BACKGROUND_ICON_INSTALLING);
+        ui_show_indeterminate_progress();
+        ui_print("Formatting /data...\n");
+        handle_truedualsystem_format(1);
+        if(format_volume("/data")!=0) {
+            ui_print("Error formatting /data!\n");
+            ui_reset_progress();
+            return -1;
+        }
+        ui_reset_progress();
+        handle_truedualsystem_format(0);
+        ui_print("Done.\n");
+
+        // mount data at /data_root
+        if(ensure_path_mounted_at_mount_point("/data", DUALBOOT_PATH_DATAROOT)!=0) {
+            LOGE("failed mounting data at %s!\n", DUALBOOT_PATH_DATAROOT);
+                return -1;
+        }
+
+        if(enable) {
+            FILE * pFile = fopen(DUALBOOT_FILE_TRUEDUALBOOT,"w");
+            if(pFile==NULL) {
+                LOGE("TrueDualBoot: failed creating file");
+            }
+            fclose(pFile);
+        }
+        else
+            remove(DUALBOOT_FILE_TRUEDUALBOOT);
+    }
+
+    ui_setMenuTextColor(MENU_TEXT_COLOR);
+
+    return 0;
 }

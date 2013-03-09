@@ -394,6 +394,11 @@ int nandroid_backup(const char* backup_path)
     if (0 != (ret = nandroid_backup_partition(backup_path, "/data")))
         return ret;
 
+    if(is_dualsystem() && isTrueDualbootEnabled() && dualboot_backup_system1) {
+        if (0 != (ret = nandroid_backup_partition(backup_path, "/data1")))
+            return ret;
+    }
+
     if (has_datadata()) {
         if (0 != (ret = nandroid_backup_partition(backup_path, "/datadata")))
             return ret;
@@ -673,7 +678,7 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
     return nandroid_restore_partition_extended(backup_path, root, 1);
 }
 
-int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_system1)
+int nandroid_restore(const char* backup_path, int restore_boot, int restore_system, int restore_data, int restore_cache, int restore_sdext, int restore_wimax, int restore_system1, int restore_data1)
 {
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     ui_show_indeterminate_progress();
@@ -731,6 +736,9 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
 
     if (restore_data && 0 != (ret = nandroid_restore_partition(backup_path, "/data")))
         return ret;
+
+    if(is_dualsystem() && isTrueDualbootEnabled() && restore_data1 && 0 != (ret = nandroid_restore_partition(backup_path, "/data1")))
+        return ret;
         
     if (has_datadata()) {
         if (restore_data && 0 != (ret = nandroid_restore_partition(backup_path, "/datadata")))
@@ -779,7 +787,7 @@ int nandroid_main(int argc, char** argv)
     {
         if (argc != 3)
             return nandroid_usage();
-        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 0);
+        return nandroid_restore(argv[2], 1, 1, 1, 1, 1, 0, 0, 0);
     }
     
     return nandroid_usage();

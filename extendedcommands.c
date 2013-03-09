@@ -456,32 +456,32 @@ void show_nandroid_restore_menu(const char* path)
             case DUALBOOT_ITEM_RESTORE_SYSTEM0:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0, 0);
                 break;
             case DUALBOOT_ITEM_RESTORE_SYSTEM1:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1, 1);
+                    nandroid_restore(file, 0, 0, 0, 1, 1, 0, 1, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_BOTH:
                 result = set_active_system(DUALBOOT_ITEM_BOTH);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_ONE_TO_TWO:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM1);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0, 0);
                 break;
             case DUALBOOT_ITEM_RESTORE_TWO_TO_ONE:
                 result = set_active_system(DUALBOOT_ITEM_SYSTEM0);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 0, 1, 1, 1, 0, 1, 1);
+                    nandroid_restore(file, 0, 0, 0, 1, 1, 0, 1, 1, 1);
                 break;
             case DUALBOOT_ITEM_RESTORE_BOTH_INTERCHANGED:
                 result = set_active_system(DUALBOOT_ITEM_INTERCHANGED);
                 if (result==0 && confirm_selection("Confirm restore?", "Yes - Restore"))
-                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1);
+                    nandroid_restore(file, 1, 1, 1, 1, 1, 0, 1, 1, 1);
                 break;
 
             default:
@@ -492,7 +492,7 @@ void show_nandroid_restore_menu(const char* path)
         return;
     }
     if (confirm_selection("Confirm restore?", "Yes - Restore"))
-        nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
+        nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0, 0);
 }
 
 void show_nandroid_delete_menu(const char* path)
@@ -514,7 +514,7 @@ void show_nandroid_delete_menu(const char* path)
         return;
 
     if (confirm_selection("Confirm delete?", "Yes - Delete")) {
-        // nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0);
+        // nandroid_restore(file, 1, 1, 1, 1, 1, 0, 0, 0);
         sprintf(tmp, "rm -rf %s", file);
         __system(tmp);
     }
@@ -1187,6 +1187,7 @@ void show_nandroid_advanced_restore_menu(const char* path)
     };
 
     char tmp[PATH_MAX];
+    int system;
     sprintf(tmp, "%s/clockworkmod/backup/", path);
     char* file = choose_file_menu(tmp, NULL, advancedheaders);
     if (file == NULL)
@@ -1198,96 +1199,106 @@ void show_nandroid_advanced_restore_menu(const char* path)
     };
 
     char* list[] = { "Restore boot",
+                            "Restore boot1",
                             "Restore system",
+                            "Restore system1",
                             "Restore data",
+                            "Restore data1",
                             "Restore cache",
                             "Restore sd-ext",
                             "Restore wimax",
-                            "Restore system1",
-                            "Restore data1",
                             NULL
     };
     
     if (0 != get_partition_device("wimax", tmp)) {
         // disable wimax restore option
-        list[5] = NULL;
+        list[8] = NULL;
     }
 
-    int item_position_system1 = 6;
-    int item_position_data1 = 7;
-    if(!is_dualsystem()) {
-        list[6] = NULL;
-        list[7] = NULL;
-    }
-    else if(list[5]==NULL) {
-        list[5] = list[6];
-        if(!isTrueDualbootEnabled()) list[6] = NULL;
-        else list[6] = list[7];
-        list[7] = NULL;
-        item_position_system1 = 5;
-        item_position_data1 = 6;
-    }
+    sprintf(tmp, "%s%s", file, "boot.img");
+    if(!fileExists(tmp))
+        list[0]=NULL;
+
+    sprintf(tmp, "%s%s", file, "boot1.img");
+    if(!fileExists(tmp))
+        list[1]=NULL;
+
+    sprintf(tmp, "%s%s", file, "system.ext4.tar");
+    if(!fileExists(tmp))
+        list[2]=NULL;
+
+    sprintf(tmp, "%s%s", file, "system1.ext4.tar");
+    if(!fileExists(tmp))
+        list[3]=NULL;
+
+    sprintf(tmp, "%s%s", file, "data.ext4.tar");
+    if(!fileExists(tmp))
+        list[4]=NULL;
+
+    sprintf(tmp, "%s%s", file, "data1.ext4.tar");
+    if(!fileExists(tmp))
+        list[5]=NULL;
+
+    sprintf(tmp, "%s%s", file, "cache.ext4.tar");
+    if(!fileExists(tmp))
+        list[6]=NULL;
+
 
     static char* confirm_restore  = "Confirm restore?";
 
-    int chosen_item = get_menu_selection(headers, list, 0, 0);
-    if(chosen_item==item_position_system1 || chosen_item==item_position_data1) {
-        if(is_dualsystem()) {
-            int system = select_system("Choose system to restore:");
-            if (system>=0) {
-                if(set_active_system(system)!=0) {
-                    LOGE("Failed setting system. Please REBOOT.\n");
-                    return;
-                }
+    int chosen_item = get_filtered_menu_selection(headers, list, 0, 0, sizeof(list) / sizeof(char*));
+
+    if(is_dualsystem() && chosen_item>=0 && chosen_item<=5) {
+        system = select_system("Choose system to restore:");
+        if (system>=0) {
+            if(set_active_system(system)!=0) {
+                LOGE("Failed setting system. Please REBOOT.\n");
+                return;
             }
-            else return;
         }
-        if(chosen_item==item_position_system1) {
-            if (confirm_selection(confirm_restore, "Yes - Restore system1"))
-                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 1, 0);
-        }
-        else if(chosen_item==item_position_data1) {
-            if (confirm_selection(confirm_restore, "Yes - Restore data1"))
-                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 0, 1);
-        }
-        return;
+        else return;
     }
+
     switch (chosen_item)
     {
         case 0:
             if (confirm_selection(confirm_restore, "Yes - Restore boot"))
-                nandroid_restore(file, 1, 0, 0, 0, 0, 0, 0, 0);
+                nandroid_restore(file, 1, 0, 0, 0, 0, 0, 0, 0, 0);
             break;
         case 1:
-            if(is_dualsystem()) {
-                int system = select_system("Choose system to restore:");
-                if (system>=0) {
-                    if(set_active_system(system)!=0) {
-                        LOGE("Failed setting system. Please REBOOT.\n");
-                        return;
-                    }
-                }
-                else return;
-            }
-            if (confirm_selection(confirm_restore, "Yes - Restore system"))
-                nandroid_restore(file, 0, 1, 0, 0, 0, 0, 0, 0);
+            if (confirm_selection(confirm_restore, "Yes - Restore boot1"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 0, 0, 1);
             break;
         case 2:
-            if (confirm_selection(confirm_restore, "Yes - Restore data"))
-                nandroid_restore(file, 0, 0, 1, 0, 0, 0, 0, 0);
+            if (confirm_selection(confirm_restore, "Yes - Restore system"))
+                nandroid_restore(file, 0, 1, 0, 0, 0, 0, 0, 0, 0);
             break;
         case 3:
-            if (confirm_selection(confirm_restore, "Yes - Restore cache"))
-                nandroid_restore(file, 0, 0, 0, 1, 0, 0, 0, 0);
+            if (confirm_selection(confirm_restore, "Yes - Restore system1"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 1, 0, 0);
             break;
         case 4:
-            if (confirm_selection(confirm_restore, "Yes - Restore sd-ext"))
-                nandroid_restore(file, 0, 0, 0, 0, 1, 0, 0, 0);
+            if (confirm_selection(confirm_restore, "Yes - Restore data"))
+                nandroid_restore(file, 0, 0, 1, 0, 0, 0, 0, 0, 0);
             break;
         case 5:
-            if (confirm_selection(confirm_restore, "Yes - Restore wimax"))
-                nandroid_restore(file, 0, 0, 0, 0, 0, 1, 0, 0);
+            if (confirm_selection(confirm_restore, "Yes - Restore data1"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 0, 0, 1, 0);
             break;
+        case 6:
+            if (confirm_selection(confirm_restore, "Yes - Restore cache"))
+                nandroid_restore(file, 0, 0, 0, 1, 0, 0, 0, 0, 0);
+            break;
+        case 7:
+            if (confirm_selection(confirm_restore, "Yes - Restore sd-ext"))
+                nandroid_restore(file, 0, 0, 0, 0, 1, 0, 0, 0, 0);
+            break;
+        case 8:
+            if (confirm_selection(confirm_restore, "Yes - Restore wimax"))
+                nandroid_restore(file, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+            break;
+        
+        
     }
 }
 
@@ -1794,7 +1805,7 @@ void process_volumes() {
     ui_print("in case of error.\n");
 
     nandroid_backup(backup_path);
-    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0, 0, 0);
+    nandroid_restore(backup_path, 1, 1, 1, 1, 1, 0, 0, 0, 0);
     ui_set_show_text(0);
 }
 

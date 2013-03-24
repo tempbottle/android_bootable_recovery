@@ -18,4 +18,7 @@ if [ -e ${BLOCK_DEVICE} ]; then
     mount -t ext4 -o nosuid,nodev,barrier=1,noauto_da_alloc ${BLOCK_DEVICE} ${MOUNT_POINT}
 fi
 
-
+# hide recovery partition
+RECOVERY_NODE="$(busybox readlink -f /dev/block/platform/msm_sdcc.1/by-name/recovery)"
+busybox mv "${RECOVERY_NODE}" /dev/recovery_moved
+busybox mknod -m 0600 "${RECOVERY_NODE}" b 1 3

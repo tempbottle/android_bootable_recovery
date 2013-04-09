@@ -314,9 +314,12 @@ int set_active_system(int num) {
     Volume* system1 = volume_for_path("/system1");
     Volume* boot0 = volume_for_path("/boot");
     Volume* boot1 = volume_for_path("/boot1");
+    Volume* radio0 = volume_for_path("/radio");
+    Volume* radio1 = volume_for_path("/radio1");
 
     handle_volume_request(system0, system1, num);
     handle_volume_request(boot0, boot1, num);
+    handle_volume_request(radio0, radio1, num);
 
     if(ensure_path_unmounted("/data")!=0) {
         LOGE("could not unmount /data!\n");

@@ -25,8 +25,9 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-#include <linux/fb.h>
+#include "fb.h"
 #include <linux/kd.h>
+#include <linux/msm_mdp.h>
 
 #include <pixelflinger/pixelflinger.h>
 
@@ -65,15 +66,42 @@ static GGLSurface gr_framebuffer[NUM_BUFFERS];
 static GGLSurface gr_mem_surface;
 static unsigned gr_active_fb = 0;
 static unsigned double_buffering = 0;
-static int overscan_percent = OVERSCAN_PERCENT;
-static int overscan_offset_x = 0;
-static int overscan_offset_y = 0;
 
 static int gr_fb_fd = -1;
 static int gr_vt_fd = -1;
 
 static struct fb_var_screeninfo vi;
 static struct fb_fix_screeninfo fi;
+
+static int
+write_int(char const* path, int value)
+{
+    int fd;
+    static int already_warned = 0;
+
+    fd = open(path, O_RDWR);
+    if (fd >= 0) {
+        char buffer[20];
+        int bytes = sprintf(buffer, "%d\n", value);
+        int amt = write(fd, buffer, bytes);
+        close(fd);
+        return amt == -1 ? -1 : 0;
+    } else {
+        if (already_warned == 0) {
+            printf("write_int failed to open %s\n", path);
+            already_warned = 1;
+        }
+        return -1;
+    }
+}
+
+static int
+set_light_backlight(int brightness)
+{
+    int err = 0;
+    err = write_int("/sys/class/leds/lcd-backlight/brightness", brightness);
+    return err;
+}
 
 static int get_framebuffer(GGLSurface *fb)
 {
@@ -140,9 +168,6 @@ static int get_framebuffer(GGLSurface *fb)
         return -1;
     }
 
-    overscan_offset_x = vi.xres * overscan_percent / 100;
-    overscan_offset_y = vi.yres * overscan_percent / 100;
-
     fb->version = sizeof(*fb);
     fb->width = vi.xres;
     fb->height = vi.yres;
@@ -182,6 +207,12 @@ static void get_memory_surface(GGLSurface* ms) {
 static void set_active_framebuffer(unsigned n)
 {
     if (n > 1 || !double_buffering) return;
+
+    int enabled = 1;
+    if(ioctl(gr_fb_fd, MSMFB_OVERLAY_VSYNC_CTRL, &enabled)<0) {
+        perror("Enable vsync failed");
+    }
+
     vi.yres_virtual = vi.yres * NUM_BUFFERS;
     vi.yoffset = n * vi.yres;
     vi.bits_per_pixel = PIXEL_SIZE * 8;
@@ -235,9 +266,6 @@ int gr_text(int x, int y, const char *s)
     GRFont *font = gr_font;
     unsigned off;
 
-    x += overscan_offset_x;
-    y += overscan_offset_y;
-
     y -= font->ascent;
 
     gl->bindTexture(gl, &font->texture);
@@ -264,9 +292,6 @@ void gr_texticon(int x, int y, gr_surface icon) {
     }
     GGLContext* gl = gr_context;
 
-    x += overscan_offset_x;
-    y += overscan_offset_y;
-
     gl->bindTexture(gl, (GGLSurface*) icon);
     gl->texEnvi(gl, GGL_TEXTURE_ENV, GGL_TEXTURE_ENV_MODE, GGL_REPLACE);
     gl->texGeni(gl, GGL_S, GGL_TEXTURE_GEN_MODE, GGL_ONE_TO_ONE);
@@ -280,17 +305,11 @@ void gr_texticon(int x, int y, gr_surface icon) {
     gl->recti(gl, x, y, x+gr_get_width(icon), y+gr_get_height(icon));
 }
 
-void gr_fill(int x1, int y1, int x2, int y2)
+void gr_fill(int x, int y, int w, int h)
 {
-    x1 += overscan_offset_x;
-    y1 += overscan_offset_y;
-
-    x2 += overscan_offset_x;
-    y2 += overscan_offset_y;
-
     GGLContext *gl = gr_context;
     gl->disable(gl, GGL_TEXTURE_2D);
-    gl->recti(gl, x1, y1, x2, y2);
+    gl->recti(gl, x, y, w, h);
 }
 
 void gr_blit(gr_surface source, int sx, int sy, int w, int h, int dx, int dy) {
@@ -298,9 +317,6 @@ void gr_blit(gr_surface source, int sx, int sy, int w, int h, int dx, int dy) {
         return;
     }
     GGLContext *gl = gr_context;
-
-    dx += overscan_offset_x;
-    dy += overscan_offset_y;
 
     gl->bindTexture(gl, (GGLSurface*) source);
     gl->texEnvi(gl, GGL_TEXTURE_ENV, GGL_TEXTURE_ENV_MODE, GGL_REPLACE);
@@ -393,6 +409,7 @@ int gr_init(void)
 
     gr_fb_blank(true);
     gr_fb_blank(false);
+    set_light_backlight(40);
 
     return 0;
 }
@@ -411,12 +428,12 @@ void gr_exit(void)
 
 int gr_fb_width(void)
 {
-    return gr_framebuffer[0].width - 2*overscan_offset_x;
+    return gr_framebuffer[0].width;
 }
 
 int gr_fb_height(void)
 {
-    return gr_framebuffer[0].height - 2*overscan_offset_y;
+    return gr_framebuffer[0].height;
 }
 
 gr_pixel *gr_fb_data(void)

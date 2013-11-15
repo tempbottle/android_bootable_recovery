@@ -24,7 +24,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-#include <linux/fb.h>
+#include "fb.h"
 #include <linux/kd.h>
 
 #include <pixelflinger/pixelflinger.h>

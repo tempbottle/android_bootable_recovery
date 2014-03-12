@@ -1567,7 +1567,7 @@ void show_advanced_power_menu() {
 #ifdef ENABLE_LOKI
 
 #ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
-#define FIXED_ADVANCED_ENTRIES 7
+#define FIXED_ADVANCED_ENTRIES 8
 #else
 #define FIXED_ADVANCED_ENTRIES 6
 #endif
@@ -1575,7 +1575,7 @@ void show_advanced_power_menu() {
 #else
 
 #ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
-#define FIXED_ADVANCED_ENTRIES 6
+#define FIXED_ADVANCED_ENTRIES 7
 #else
 #define FIXED_ADVANCED_ENTRIES 5
 #endif
@@ -1602,9 +1602,7 @@ int show_advanced_menu() {
     list[list_index++] = NULL;
 #ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
     int index_tdb = list_index++;
-    char tdb_name[PATH_MAX];
-    device_get_truedualboot_entry(tdb_name);
-    list[index_tdb] = &tdb_name;
+    int index_bootmode = list_index++;
 #endif
 #ifdef ENABLE_LOKI
 	int index_loki = list_index++;
@@ -1630,6 +1628,15 @@ int show_advanced_menu() {
     list[FIXED_ADVANCED_ENTRIES + j] = NULL;
 
     for (;;) {
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+        char tdb_name[PATH_MAX];
+        device_get_truedualboot_entry(tdb_name);
+        list[index_tdb] = &tdb_name;
+
+        char bootmode_name[PATH_MAX];
+        device_get_bootmode(bootmode_name);
+        list[index_bootmode] = &bootmode_name;
+#endif
         if (is_data_media()) {
             ensure_path_mounted("/data");
             if (use_migrated_storage())
@@ -1711,6 +1718,10 @@ int show_advanced_menu() {
 #ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
             if(chosen_item==index_tdb) {
                 device_toggle_truedualboot();
+                break;
+            }
+            if(chosen_item==index_bootmode) {
+                device_choose_bootmode();
                 break;
             }
 #endif

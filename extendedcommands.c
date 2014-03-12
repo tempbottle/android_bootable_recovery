@@ -1565,14 +1565,26 @@ void show_advanced_power_menu() {
 }
 
 #ifdef ENABLE_LOKI
-    #define FIXED_ADVANCED_ENTRIES 6
+
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+#define FIXED_ADVANCED_ENTRIES 7
 #else
-    #define FIXED_ADVANCED_ENTRIES 5
+#define FIXED_ADVANCED_ENTRIES 6
+#endif
+
+#else
+
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+#define FIXED_ADVANCED_ENTRIES 6
+#else
+#define FIXED_ADVANCED_ENTRIES 5
+#endif
+
 #endif
 
 int show_advanced_menu() {
     char buf[80];
-    int i = 0, j = 0, chosen_item = 0;
+    int i = 0, j = 0, chosen_item = 0, list_index = 0;
     static char* list[MAX_NUM_MANAGED_VOLUMES + FIXED_ADVANCED_ENTRIES + 1];
 
     char* primary_path = get_primary_storage_path();
@@ -1583,13 +1595,20 @@ int show_advanced_menu() {
 
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + FIXED_ADVANCED_ENTRIES + 1);
 
-    list[0] = "Wipe Dalvik Cache";
-    list[1] = "Report Error";
-    list[2] = "Key Test";
-    list[3] = "Show log";
-    list[4] = NULL;
+    list[list_index++] = "Wipe Dalvik Cache";
+    list[list_index++] = "Report Error";
+    list[list_index++] = "Key Test";
+    list[list_index++] = "Show log";
+    list[list_index++] = NULL;
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+    int index_tdb = list_index++;
+    char tdb_name[PATH_MAX];
+    device_get_truedualboot_entry(tdb_name);
+    list[index_tdb] = &tdb_name;
+#endif
 #ifdef ENABLE_LOKI
-    list[5] = NULL;
+	int index_loki = list_index++;
+    list[list_index++] = NULL;
 #endif
 
     char list_prefix[] = "Partition ";
@@ -1688,14 +1707,21 @@ int show_advanced_menu() {
                 }
                 break;
             }
+			default:
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+            if(chosen_item==index_tdb) {
+                device_toggle_truedualboot();
+                break;
+            }
+#endif
 #ifdef ENABLE_LOKI
-            case 5:
+            if(chosen_item==index_loki) {
                 toggle_loki_support();
                 break;
+            }
 #endif
-            default:
-                partition_sdcard(list[chosen_item] + strlen(list_prefix));
-                break;
+            partition_sdcard(list[chosen_item] + strlen(list_prefix));
+            break;
         }
     }
 

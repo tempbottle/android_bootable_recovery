@@ -764,6 +764,14 @@ else ifeq ($(TARGET_PRODUCT), cm_mint)
     TARGET_SCREEN_WIDTH := 720
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight_1/brightness"
 
+#Xiaomi MI2 (aries)
+else ifeq ($(TARGET_PRODUCT), cm_aries)
+    TARGET_COMMON_NAME := MI2
+    TARGET_SCREEN_HEIGHT := 1280
+    TARGET_SCREEN_WIDTH := 720
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+    BOARD_USE_FB2PNG := true
+
 #ZTE Warp Sequent - N861 (warp2)
 else ifeq ($(TARGET_PRODUCT), cm_warp2)
     TARGET_COMMON_NAME := ZTE Warp Sequent - N861
